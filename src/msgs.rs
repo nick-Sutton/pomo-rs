@@ -11,4 +11,5 @@ pub enum TimerEvent {
     Completed,           // Timer finished
     Paused,
     Resumed,
+    Set,
 }

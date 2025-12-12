@@ -35,14 +35,14 @@ fn main() {
 
     // Set up TUI
 
-    // Set up cli parsing
-    let cli = cli::Cli::parse();
-
-    // Update state based on command
-    pomo_state.update(cli.command, &cmd_tx);
-
     // Parse commands
     loop {
+        // Set up cli parsing
+        let cli = cli::Cli::parse();
+
+        // Update state based on command
+        pomo_state.update(cli.command, &cmd_tx);
+
         match event_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(msgs::TimerEvent::Completed) => {
                 // swap state
@@ -88,7 +88,10 @@ fn main() {
                 // Update UI
             }
             Ok(msgs::TimerEvent::Tick(remaining)) => {
-                //Update UI
+                // Update UI
+            }
+            Ok(msgs::TimerEvent::Set) => {
+                // Update UI
             }
             _ => continue,
         }

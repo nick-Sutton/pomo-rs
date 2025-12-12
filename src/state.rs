@@ -57,25 +57,21 @@ impl PomoState {
 
                          // Send update to timer thread
                         timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
-                        println!("Study duration set to {}s", duration);
                     }
                     cli::SetCommandType::ShortBreak => {
                         self.short_break_duration = duration;
 
                         // Send update to timer thread
                         timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
-                        println!("Short break duration set to {}s", duration);
                     }
                     cli::SetCommandType::LongBreak => {
                         self.long_break_duration = duration;
 
                         // Send update to timer thread
                         timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
-                        println!("Long break duration set to {}s", duration);
                     }
                     cli::SetCommandType::Cycle => {
                         self.pomo_cycle = duration;
-                        println!("Pomodoro cycle set to {}", duration);
                     }
                 }
             }
@@ -84,8 +80,8 @@ impl PomoState {
                 if self.is_running {
                     self.is_running = false;
                     timer_tx.send(msgs::TimerMessage::Pause).unwrap();
-                    println!("Pausing timer...");
                 } else {
+                    // Do nothing a print a message to user
                     println!("No active timer to pause");
                 }
             }
@@ -94,8 +90,8 @@ impl PomoState {
                 if !self.is_running{
                     self.is_running = true;
                     timer_tx.send(msgs::TimerMessage::Resume).unwrap();
-                    println!("Resuming");
                 } else {
+                    // Do nothing and print
                     println!("No paused timer to resume");
                 }
             }
