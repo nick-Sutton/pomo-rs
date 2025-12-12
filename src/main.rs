@@ -43,58 +43,9 @@ fn main() {
         // Update state based on command
         pomo_state.update(cli.command, &cmd_tx);
 
-        match event_rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(msgs::TimerEvent::Completed) => {
-                // swap state
-                match pomo_state.curr_state {
-                    state::TimerState::Study => {
-                        // Check and update cycle count
-                        if pomo_state.cycle_count == pomo_state.pomo_cycle {
-                            pomo_state.curr_state = state::TimerState::LongBreak;
-                            pomo_state.cycle_count = 0;
+        let event = event_rx.recv_timeout(Duration::from_millis(100)).unwrap();
 
-                            // Send long break duration to timer
-                            cmd_tx.send(msgs::TimerMessage::Set(pomo_state.long_break_duration)).unwrap();
-
-                            // Update UI
-                        } else {
-                            pomo_state.curr_state = state::TimerState::ShortBreak;
-                            pomo_state.cycle_count += 1;
-
-                            // Send short break duration to timer
-                            cmd_tx.send(msgs::TimerMessage::Set(pomo_state.short_break_duration)).unwrap();
-
-                            //Update UI
-                        }
-                    }
-                    state::TimerState::ShortBreak | state::TimerState::LongBreak => {
-                        pomo_state.curr_state = state::TimerState::Study;
-
-                        // Send study duration to timer
-                        cmd_tx.send(msgs::TimerMessage::Set(pomo_state.study_duration)).unwrap();
-
-                        // Update UI
-
-                    }
-                }
-
-            }
-            Ok(msgs::TimerEvent::Paused) => {
-                pomo_state.is_running = false;
-                // Update UI
-            }
-            Ok(msgs::TimerEvent::Resumed) => {
-                pomo_state.is_running = true;
-                // Update UI
-            }
-            Ok(msgs::TimerEvent::Tick(remaining)) => {
-                // Update UI
-            }
-            Ok(msgs::TimerEvent::Set) => {
-                // Update UI
-            }
-            _ => continue,
-        }
+        pomo_state.handle_event(event, &cmd_tx);
     }
 
 

@@ -13,3 +13,10 @@ pub enum TimerEvent {
     Resumed,
     Set,
 }
+
+pub enum PomoErr {
+    InvalidDuration(u32),
+    TimerAlreadyActive,
+    TimerAlreadyPaused,
+    ChannelSendFailed,
+}

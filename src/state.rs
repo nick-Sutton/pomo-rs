@@ -1,5 +1,5 @@
 use std::sync::mpsc::{Sender};
-use crate::{cli, msgs};
+use crate::{cli, msgs::{self, TimerEvent}};
 
 /* Defualt study timer duration (Minutes) */
 const DEFAULT_STUDY_DURATION: u32 = 25;
@@ -47,7 +47,7 @@ impl PomoState {
     }
 
     /* Update state based on command */
-    pub fn update(&mut self, command: cli::Commands, timer_tx: &Sender<msgs::TimerMessage>) {
+    pub fn update(&mut self, command: cli::Commands) -> Result<Option<msgs::TimerMessage>, msgs::PomoErr>{
         match command {
             // Change the value of the state specified in the set command
             cli::Commands::Set { set_cmd_type, duration } => {
@@ -56,22 +56,23 @@ impl PomoState {
                         self.study_duration = duration;
 
                          // Send update to timer thread
-                        timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
+                        return Ok(Some(msgs::TimerMessage::Set(duration)));
                     }
                     cli::SetCommandType::ShortBreak => {
                         self.short_break_duration = duration;
 
                         // Send update to timer thread
-                        timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
+                        return Ok(Some(msgs::TimerMessage::Set(duration)));
                     }
                     cli::SetCommandType::LongBreak => {
                         self.long_break_duration = duration;
 
                         // Send update to timer thread
-                        timer_tx.send(msgs::TimerMessage::Set(duration)).unwrap();
+                        return Ok(Some(msgs::TimerMessage::Set(duration)));
                     }
                     cli::SetCommandType::Cycle => {
                         self.pomo_cycle = duration;
+                        return Ok(None);
                     }
                 }
             }
@@ -79,45 +80,94 @@ impl PomoState {
             cli::Commands::Pause => {
                 if self.is_running {
                     self.is_running = false;
-                    timer_tx.send(msgs::TimerMessage::Pause).unwrap();
+
+                    return Ok(Some(msgs::TimerMessage::Pause));
                 } else {
-                    // Do nothing a print a message to user
-                    println!("No active timer to pause");
+                    return Err(msgs::PomoErr::TimerAlreadyPaused);
                 }
             }
             // Resume the timer
             cli::Commands::Resume => {
                 if !self.is_running{
                     self.is_running = true;
-                    timer_tx.send(msgs::TimerMessage::Resume).unwrap();
+                    return Ok(Some(msgs::TimerMessage::Resume));
                 } else {
-                    // Do nothing and print
-                    println!("No paused timer to resume");
+                    return Err(msgs::PomoErr::TimerAlreadyActive);
                 }
             }
             cli::Commands::Reset { reset_cmd_type} => {
                 match reset_cmd_type {
                     cli::ResetCommandType::Timer => {
                         // TODO: Might need to ensure this is only done if the timer is paused
-                        // Current Reset timer
-                        if let TimerState::Study = self.curr_state {
-                            timer_tx.send(msgs::TimerMessage::Set(self.study_duration)).unwrap();
-                        }
-
-                        if let TimerState::ShortBreak = self.curr_state {
-                            timer_tx.send(msgs::TimerMessage::Set(self.short_break_duration)).unwrap();
-                        }
-
-                        if let TimerState::LongBreak = self.curr_state {
-                            timer_tx.send(msgs::TimerMessage::Set(self.long_break_duration)).unwrap();
-                        }
+                        let duration = match self.curr_state {
+                            TimerState::Study => self.study_duration,
+                            TimerState::ShortBreak => self.short_break_duration,
+                            TimerState::LongBreak => self.long_break_duration,
+                        };
+                        return Ok(Some(msgs::TimerMessage::Set(duration)));
                     }
                     cli::ResetCommandType::Cycle => {
                         self.cycle_count = 0;
+                        return Ok(None);
                     }
                 }
             }
         }
         
+    }
+
+    pub fn handle_event(&mut self, event: TimerEvent, cmd_tx: &Sender<msgs::TimerMessage>) {
+        match event {
+            TimerEvent::Completed => {
+                // swap state
+                match self.curr_state {
+                    TimerState::Study => {
+                        // Check and update cycle count
+                        if self.cycle_count == self.pomo_cycle {
+                            self.curr_state = TimerState::LongBreak;
+                            self.cycle_count = 0;
+
+                            // Send long break duration to timer
+                            cmd_tx.send(msgs::TimerMessage::Set(self.long_break_duration)).unwrap();
+
+                            // Update UI
+                        } else {
+                            self.curr_state = TimerState::ShortBreak;
+                            self.cycle_count += 1;
+
+                            // Send short break duration to timer
+                            cmd_tx.send(msgs::TimerMessage::Set(self.short_break_duration)).unwrap();
+
+                            //Update UI
+                        }
+                    }
+                    TimerState::ShortBreak | TimerState::LongBreak => {
+                        self.curr_state = TimerState::Study;
+
+                        // Send study duration to timer
+                        cmd_tx.send(msgs::TimerMessage::Set(self.study_duration)).unwrap();
+
+                        // Update UI
+
+                    }
+                }
+
+            }
+            TimerEvent::Paused => {
+                self.is_running = false;
+                // Update UI
+            }
+            TimerEvent::Resumed => {
+                self.is_running = true;
+                // Update UI
+            }
+            TimerEvent::Tick(remaining) => {
+                // Update UI
+            }
+            TimerEvent::Set => {
+                // Update UI
+            }
+            _ => return,
+        }
     }
 }
